@@ -31,3 +31,14 @@ class MarketSnapshotRepository:
         db.refresh(snapshot)
 
         return snapshot
+
+    @staticmethod
+    def get_latest(db: Session):
+
+      return (
+        db.query(MarketSnapshot)
+        .order_by(
+            MarketSnapshot.created_on.desc()
+        )
+        .first()
+    )    

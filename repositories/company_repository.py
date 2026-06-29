@@ -50,3 +50,15 @@ class CompanyRepository:
         db.refresh(obj)
 
         return obj
+
+    @staticmethod
+    def get_all_fno_companies(db: Session):
+
+        return (
+            db.query(CompanyMaster)
+            .filter(
+                CompanyMaster.is_fno == True,
+                CompanyMaster.is_active == True
+            )
+            .all()
+        )

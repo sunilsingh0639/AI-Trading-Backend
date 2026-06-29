@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP
 from sqlalchemy.sql import func
 from database import Base
 
@@ -23,3 +23,7 @@ class CompanyMaster(Base):
         TIMESTAMP(timezone=True),
         server_default=func.now()
     )
+
+    is_fno = Column(Boolean, default=False)
+
+    is_active = Column(Boolean, default=True)

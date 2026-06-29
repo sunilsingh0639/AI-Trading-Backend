@@ -2,8 +2,9 @@ from repositories.news_repository import NewsRepository
 from repositories.analysis_repository import AnalysisRepository
 from services.ai_service import AIService
 from services.prediction_service import PredictionService
+from services.news_filter_service import NewsFilterService
+from services.context_service import ContextService
 import traceback
-
 
 class AnalysisService:
 
@@ -32,10 +33,26 @@ class AnalysisService:
                 print("=" * 80)
                 print("Analyzing News ID:", news.id)
                 print("Title:", news.title)
+                news_type = NewsFilterService.classify_news(
+                 db,
+                 news.title
+                )
 
+                print("News Type :", news_type)
+
+                if news_type == "IGNORE":
+                 print("Skipping News :", news.title)
+                NewsRepository.update_ai_status(
+                db,
+                news
+                )
+                context = ContextService.get_market_context(db)
+                print(context)
+                continue
                 result = AIService.analyze_news(
                     news.title,
-                    news.description or ""
+                    news.description or "",
+                    context
                 )
 
                 print("AI Result:", result)

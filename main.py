@@ -19,6 +19,7 @@ from services.scheduler_service import start_scheduler
 import models.company_master
 import models.prediction_history
 import models.market_snapshot
+import models.market_event_master
 from services.company_service import CompanyService
 from services.market_snapshot_service import MarketSnapshotService
 from services.prediction_service import PredictionService
