@@ -14,7 +14,7 @@ client = OpenAI(
 class AIService:
 
     @staticmethod
-    def analyze_news(title, description):
+    def analyze_news(title, description, context):    
 
         prompt = f"""
 You are an expert Indian Stock Market Analyst.

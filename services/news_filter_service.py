@@ -4,7 +4,6 @@ from repositories.company_repository import CompanyRepository
 class NewsFilterService:
 
     COMMODITY_KEYWORDS = [
-
         "CRUDE",
         "OIL",
         "BRENT",
@@ -13,12 +12,12 @@ class NewsFilterService:
         "SILVER",
         "COPPER",
         "NATURAL GAS",
-        "MCX"
-
+        "MCX",
+        "OPEC",
+        "LNG"
     ]
 
     MACRO_KEYWORDS = [
-
         "RBI",
         "FED",
         "GDP",
@@ -30,8 +29,27 @@ class NewsFilterService:
         "FII",
         "DII",
         "SEBI",
-        "BUDGET"
+        "BUDGET",
+        "REPO",
+        "CPI",
+        "PPI",
+        "UNEMPLOYMENT",
+        "TARIFF"
+    ]
 
+    GLOBAL_KEYWORDS = [
+        "NASDAQ",
+        "DOW",
+        "S&P",
+        "NYSE",
+        "CHINA",
+        "JAPAN",
+        "IRAN",
+        "ISRAEL",
+        "RUSSIA",
+        "UKRAINE",
+        "TRUMP",
+        "USA"
     ]
 
     @staticmethod
@@ -39,31 +57,42 @@ class NewsFilterService:
 
         title = (title or "").upper()
 
-        # Commodity
+        # ------------------------
+        # Commodity News
+        # ------------------------
         for keyword in NewsFilterService.COMMODITY_KEYWORDS:
-
             if keyword in title:
-
                 return "COMMODITY"
 
-        # Macro
+        # ------------------------
+        # Macro News
+        # ------------------------
         for keyword in NewsFilterService.MACRO_KEYWORDS:
-
             if keyword in title:
-
                 return "MACRO"
 
-        # F&O Companies from Database
+        # ------------------------
+        # Global News
+        # ------------------------
+        for keyword in NewsFilterService.GLOBAL_KEYWORDS:
+            if keyword in title:
+                return "GLOBAL"
+
+        # ------------------------
+        # Indian F&O Companies
+        # ------------------------
         companies = CompanyRepository.get_all_fno_companies(db)
 
         for company in companies:
 
-            if company.symbol.upper() in title:
-
+            if company.company_name and company.company_name.upper() in title:
                 return "STOCK"
 
-            if company.company_name.upper() in title:
-
+            if company.symbol and company.symbol.upper() in title:
                 return "STOCK"
 
-        return "IGNORE"
+        # ------------------------
+        # Default
+        # ------------------------
+
+        return "GENERAL"
