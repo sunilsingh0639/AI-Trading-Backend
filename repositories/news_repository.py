@@ -30,13 +30,13 @@ class NewsRepository:
         return db_news
 
     @staticmethod
-    def get_pending_news(db: Session):
+    def get_pending_news(db: Session, limit: int = 10):
 
         return (
             db.query(MarketNews)
             .filter(MarketNews.ai_status == False)
             .order_by(MarketNews.id.desc())
-            .limit(10)
+            .limit(limit)
             .all()
         )
 
@@ -44,9 +44,6 @@ class NewsRepository:
     def update_ai_status(db: Session, news):
 
         news.ai_status = True
-
-        db.commit()
-
-        db.refresh(news)
+        db.flush()
 
         return news

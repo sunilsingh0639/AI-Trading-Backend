@@ -1,4 +1,5 @@
 from models.market_snapshot import MarketSnapshot
+from sqlalchemy.orm import Session
 
 
 class MarketSnapshotRepository:
@@ -41,4 +42,4 @@ class MarketSnapshotRepository:
             MarketSnapshot.created_on.desc()
         )
         .first()
-    )    
+    )

@@ -39,7 +39,11 @@ class CompanyRepository:
 
             sector=company.get("sector"),
 
-            industry=company.get("industry")
+            industry=company.get("industry"),
+
+            is_fno=company.get("is_fno", False),
+
+            is_active=company.get("is_active", True)
 
         )
 
@@ -50,6 +54,23 @@ class CompanyRepository:
         db.refresh(obj)
 
         return obj
+
+    @staticmethod
+    def find_in_title(db: Session, title: str):
+        """Return the most specific active F&O company mentioned in a headline."""
+        normalized_title = (title or "").upper()
+        companies = CompanyRepository.get_all_fno_companies(db)
+
+        for company in sorted(
+            companies,
+            key=lambda item: len(item.company_name or ""),
+            reverse=True,
+        ):
+            name = (company.company_name or "").upper()
+            symbol = (company.symbol or "").upper()
+            if (name and name in normalized_title) or (symbol and symbol in normalized_title):
+                return company
+        return None
 
     @staticmethod
     def get_all_fno_companies(db: Session):

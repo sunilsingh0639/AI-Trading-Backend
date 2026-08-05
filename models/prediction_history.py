@@ -31,7 +31,7 @@ class PredictionHistory(Base):
 
     stop_loss = Column(Float, nullable=True)
 
-    status = Column(String(20), default="PENDING")
+    status = Column(String(20), default="PENDING", index=True)
 
     created_on = Column(
         TIMESTAMP(timezone=True),

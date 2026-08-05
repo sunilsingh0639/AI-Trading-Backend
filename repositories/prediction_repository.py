@@ -13,6 +13,7 @@ class PredictionRepository:
         ai_result: dict
     ):
 
+        trade_plan = ai_result.get("trade_plan") or {}
         prediction = PredictionHistory(
 
             news_id=news_id,
@@ -23,29 +24,26 @@ class PredictionRepository:
 
             sector=ai_result.get("sector"),
 
-            recommendation=ai_result.get("recommendation"),
+            recommendation=trade_plan.get("recommendation", ai_result.get("recommendation")),
 
-            confidence=float(ai_result.get("confidence", 0)),
+            confidence=float(trade_plan.get("confidence", ai_result.get("confidence", 0))),
 
             impact=ai_result.get("impact"),
 
-            reason=ai_result.get("reason"),
+            reason=trade_plan.get("reason", ai_result.get("reason")),
 
-            entry_price=None,
+            entry_price=trade_plan.get("entry_price"),
 
-            target_price=None,
+            target_price=trade_plan.get("target_price"),
 
-            stop_loss=None,
+            stop_loss=trade_plan.get("stop_loss"),
 
             status="PENDING"
 
         )
 
         db.add(prediction)
-
-        db.commit()
-
-        db.refresh(prediction)
+        db.flush()
 
         return prediction
 

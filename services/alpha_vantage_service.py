@@ -11,6 +11,9 @@ BASE_URL = "https://www.alphavantage.co/query"
 
 def get_alpha_news():
 
+    if not API_KEY:
+        raise RuntimeError("ALPHA_VANTAGE_API_KEY is not configured.")
+
     params = {
         "function": "NEWS_SENTIMENT",
         "topics": "financial_markets",
@@ -19,7 +22,8 @@ def get_alpha_news():
         "apikey": API_KEY
     }
 
-    response = requests.get(BASE_URL, params=params)
+    response = requests.get(BASE_URL, params=params, timeout=15)
+    response.raise_for_status()
 
     data = response.json()
 

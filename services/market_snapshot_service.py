@@ -1,4 +1,5 @@
 import yfinance as yf
+import logging
 
 from repositories.market_snapshot_repository import (
     MarketSnapshotRepository
@@ -7,26 +8,32 @@ from repositories.market_snapshot_repository import (
 
 class MarketSnapshotService:
 
-    @staticmethod
-    def save_snapshot(db):
+    _QUOTES = {
+        "nifty": "^NSEI",
+        "bank_nifty": "^NSEBANK",
+        "sensex": "^BSESN",
+        "india_vix": "^INDIAVIX",
+        "crude": "CL=F",
+        "gold": "GC=F",
+        "usd_inr": "INR=X",
+    }
 
-        data = {
+    logger = logging.getLogger(__name__)
 
-            "nifty": yf.Ticker("^NSEI").fast_info.get("lastPrice"),
+    @classmethod
+    def _last_price(cls, ticker: str) -> float | None:
+        try:
+            value = yf.Ticker(ticker).fast_info.get("lastPrice")
+            return float(value) if value is not None else None
+        except Exception as error:
+            cls.logger.warning("Could not fetch quote for %s: %s", ticker, error)
+            return None
 
-            "bank_nifty": yf.Ticker("^NSEBANK").fast_info.get("lastPrice"),
-
-            "sensex": yf.Ticker("^BSESN").fast_info.get("lastPrice"),
-
-            "india_vix": yf.Ticker("^INDIAVIX").fast_info.get("lastPrice"),
-
-            "crude": yf.Ticker("CL=F").fast_info.get("lastPrice"),
-
-            "gold": yf.Ticker("GC=F").fast_info.get("lastPrice"),
-
-            "usd_inr": yf.Ticker("INR=X").fast_info.get("lastPrice")
-
-        }
+    @classmethod
+    def save_snapshot(cls, db):
+        data = {field: cls._last_price(ticker) for field, ticker in cls._QUOTES.items()}
+        if not any(value is not None for value in data.values()):
+            raise RuntimeError("No market snapshot quotes are currently available.")
 
         return MarketSnapshotRepository.save(
             db,

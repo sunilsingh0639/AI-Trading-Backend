@@ -1,5 +1,6 @@
 from repositories.market_snapshot_repository import MarketSnapshotRepository
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 class ContextService:
@@ -9,7 +10,7 @@ class ContextService:
 
         snapshot = MarketSnapshotRepository.get_latest(db)
 
-        now = datetime.now()
+        now = datetime.now(ZoneInfo("Asia/Kolkata"))
 
         hour = now.hour
         minute = now.minute
@@ -29,18 +30,18 @@ class ContextService:
 
             "session": session,
 
-            "nifty": snapshot.nifty,
+            "nifty": snapshot.nifty if snapshot else None,
 
-            "bank_nifty": snapshot.bank_nifty,
+            "bank_nifty": snapshot.bank_nifty if snapshot else None,
 
-            "sensex": snapshot.sensex,
+            "sensex": snapshot.sensex if snapshot else None,
 
-            "vix": snapshot.india_vix,
+            "vix": snapshot.india_vix if snapshot else None,
 
-            "crude": snapshot.crude,
+            "crude": snapshot.crude if snapshot else None,
 
-            "gold": snapshot.gold,
+            "gold": snapshot.gold if snapshot else None,
 
-            "usd_inr": snapshot.usd_inr
+            "usd_inr": snapshot.usd_inr if snapshot else None
 
         }

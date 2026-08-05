@@ -28,9 +28,6 @@ class AnalysisRepository:
         )
 
         db.add(analysis)
-
-        db.commit()
-
-        db.refresh(analysis)
+        db.flush()
 
         return analysis

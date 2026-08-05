@@ -12,6 +12,9 @@ BASE_URL = "https://finnhub.io/api/v1/company-news"
 
 def get_finnhub_news(symbol="AAPL"):
 
+    if not API_KEY:
+        raise RuntimeError("FINNHUB_API_KEY is not configured.")
+
     today = datetime.now()
 
     from_date = (today - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -25,9 +28,13 @@ def get_finnhub_news(symbol="AAPL"):
         "token": API_KEY
     }
 
-    response = requests.get(BASE_URL, params=params)
+    response = requests.get(BASE_URL, params=params, timeout=15)
+    response.raise_for_status()
 
     data = response.json()
+
+    if not isinstance(data, list):
+        raise RuntimeError("Finnhub returned an unexpected response.")
 
     news = []
 
