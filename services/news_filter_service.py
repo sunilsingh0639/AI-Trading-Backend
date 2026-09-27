@@ -14,7 +14,7 @@ class NewsFilterService:
         "NATURAL GAS",
         "MCX",
         "OPEC",
-        "LNG"
+        "LNG",
     ]
 
     MACRO_KEYWORDS = [
@@ -34,7 +34,7 @@ class NewsFilterService:
         "CPI",
         "PPI",
         "UNEMPLOYMENT",
-        "TARIFF"
+        "TARIFF",
     ]
 
     GLOBAL_KEYWORDS = [
@@ -49,50 +49,48 @@ class NewsFilterService:
         "RUSSIA",
         "UKRAINE",
         "TRUMP",
-        "USA"
+        "USA",
+    ]
+
+    IGNORE_KEYWORDS = [
+        "OPINION:",
+        "EDITORIAL:",
+        "PODCAST",
+        "WEBINAR",
+        "HOROSCOPE",
+        "RECIPE",
+        "MOVIE REVIEW",
+        "BOLLYWOOD GOSSIP",
     ]
 
     @staticmethod
-    def classify_news(db, title: str):
+    def classify_news(db, title: str) -> str:
+        import re
+        normalized = (title or "").upper()
 
-        title = (title or "").upper()
+        for keyword in NewsFilterService.IGNORE_KEYWORDS:
+            if keyword in normalized:
+                return "IGNORE"
 
-        # ------------------------
-        # Commodity News
-        # ------------------------
         for keyword in NewsFilterService.COMMODITY_KEYWORDS:
-            if keyword in title:
+            if keyword in normalized:
                 return "COMMODITY"
 
-        # ------------------------
-        # Macro News
-        # ------------------------
         for keyword in NewsFilterService.MACRO_KEYWORDS:
-            if keyword in title:
+            if keyword in normalized:
                 return "MACRO"
 
-        # ------------------------
-        # Global News
-        # ------------------------
         for keyword in NewsFilterService.GLOBAL_KEYWORDS:
-            if keyword in title:
+            if keyword in normalized:
                 return "GLOBAL"
 
-        # ------------------------
-        # Indian F&O Companies
-        # ------------------------
         companies = CompanyRepository.get_all_fno_companies(db)
-
         for company in companies:
-
-            if company.company_name and company.company_name.upper() in title:
+            name = (company.company_name or "").upper()
+            symbol = (company.symbol or "").upper()
+            if name and re.search(r'\b' + re.escape(name) + r'\b', normalized):
                 return "STOCK"
-
-            if company.symbol and company.symbol.upper() in title:
+            if symbol and len(symbol) >= 3 and re.search(r'\b' + re.escape(symbol) + r'\b', normalized):
                 return "STOCK"
-
-        # ------------------------
-        # Default
-        # ------------------------
 
         return "GENERAL"

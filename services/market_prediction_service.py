@@ -217,6 +217,8 @@ class IntradayPredictionService:
             "target_price": round(target_price, 2) if target_price is not None else None,
             "stop_loss": round(stop_loss, 2) if stop_loss is not None else None,
             "risk_reward_ratio": risk_reward_ratio,
+            "expected_holding_minutes": 30,
+            "probability": round(confidence / 100, 3) if tradeable else 0.0,
             "indicators": {
                 "ema_9": round(float(ema_fast.iloc[-1]), 2),
                 "ema_21": round(float(ema_slow.iloc[-1]), 2),

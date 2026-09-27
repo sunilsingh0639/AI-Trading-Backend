@@ -1,0 +1,180 @@
+"""Seed NSE F&O companies into company_master (idempotent)."""
+import os, sys
+sys.stdout.reconfigure(encoding='utf-8')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from database import SessionLocal
+from models.company_master import CompanyMaster
+
+# Core NSE F&O companies — name must match what appears in news headlines
+FNO_COMPANIES = [
+    ("Reliance Industries", "RELIANCE", "Energy"),
+    ("Tata Consultancy Services", "TCS", "IT"),
+    ("HDFC Bank", "HDFCBANK", "Banking"),
+    ("Infosys", "INFY", "IT"),
+    ("ICICI Bank", "ICICIBANK", "Banking"),
+    ("Hindustan Unilever", "HINDUNILVR", "FMCG"),
+    ("State Bank of India", "SBIN", "Banking"),
+    ("Bharti Airtel", "BHARTIARTL", "Telecom"),
+    ("ITC", "ITC", "FMCG"),
+    ("Kotak Mahindra Bank", "KOTAKBANK", "Banking"),
+    ("Larsen & Toubro", "LT", "Infrastructure"),
+    ("Axis Bank", "AXISBANK", "Banking"),
+    ("Bajaj Finance", "BAJFINANCE", "NBFC"),
+    ("Wipro", "WIPRO", "IT"),
+    ("HCL Technologies", "HCLTECH", "IT"),
+    ("Maruti Suzuki", "MARUTI", "Auto"),
+    ("Sun Pharmaceutical", "SUNPHARMA", "Pharma"),
+    ("Tata Motors", "TATAMOTORS", "Auto"),
+    ("Titan Company", "TITAN", "Consumer"),
+    ("Asian Paints", "ASIANPAINT", "Consumer"),
+    ("Bajaj Auto", "BAJAJ-AUTO", "Auto"),
+    ("Tech Mahindra", "TECHM", "IT"),
+    ("UltraTech Cement", "ULTRACEMCO", "Cement"),
+    ("Nestle India", "NESTLEIND", "FMCG"),
+    ("Power Grid Corporation", "POWERGRID", "Power"),
+    ("NTPC", "NTPC", "Power"),
+    ("Oil and Natural Gas Corporation", "ONGC", "Energy"),
+    ("Adani Ports", "ADANIPORTS", "Infrastructure"),
+    ("Adani Enterprises", "ADANIENT", "Conglomerate"),
+    ("Adani Green Energy", "ADANIGREEN", "Energy"),
+    ("Tata Steel", "TATASTEEL", "Metals"),
+    ("JSW Steel", "JSWSTEEL", "Metals"),
+    ("Hindalco Industries", "HINDALCO", "Metals"),
+    ("Vedanta", "VEDL", "Metals"),
+    ("Coal India", "COALINDIA", "Mining"),
+    ("Bharat Petroleum", "BPCL", "Energy"),
+    ("Indian Oil Corporation", "IOC", "Energy"),
+    ("Cipla", "CIPLA", "Pharma"),
+    ("Dr Reddy's Laboratories", "DRREDDY", "Pharma"),
+    ("Divi's Laboratories", "DIVISLAB", "Pharma"),
+    ("Eicher Motors", "EICHERMOT", "Auto"),
+    ("Hero MotoCorp", "HEROMOTOCO", "Auto"),
+    ("Mahindra & Mahindra", "M&M", "Auto"),
+    ("Grasim Industries", "GRASIM", "Diversified"),
+    ("IndusInd Bank", "INDUSINDBK", "Banking"),
+    ("Shriram Finance", "SHRIRAMFIN", "NBFC"),
+    ("Bajaj Finserv", "BAJAJFINSV", "Financial Services"),
+    ("SBI Life Insurance", "SBILIFE", "Insurance"),
+    ("HDFC Life Insurance", "HDFCLIFE", "Insurance"),
+    ("Britannia Industries", "BRITANNIA", "FMCG"),
+    ("Castrol India", "CASTROLIND", "Energy"),
+    ("Tata Power", "TATAPOWER", "Power"),
+    ("Tata Consumer Products", "TATACONSUM", "FMCG"),
+    ("Zomato", "ZOMATO", "Consumer Tech"),
+    ("Paytm", "PAYTM", "Fintech"),
+    ("Nykaa", "NYKAA", "Consumer Tech"),
+    ("Delhivery", "DELHIVERY", "Logistics"),
+    ("Godrej Consumer Products", "GODREJCP", "FMCG"),
+    ("Pidilite Industries", "PIDILITIND", "Chemicals"),
+    ("Havells India", "HAVELLS", "Consumer Electricals"),
+    ("Voltas", "VOLTAS", "Consumer Electricals"),
+    ("Bharat Electronics", "BEL", "Defence"),
+    ("HAL", "HAL", "Defence"),
+    ("Mazagon Dock", "MAZDOCK", "Defence"),
+    ("Interglobe Aviation", "INDIGO", "Aviation"),
+    ("SpiceJet", "SPICEJET", "Aviation"),
+    ("Zydus Lifesciences", "ZYDUSLIFE", "Pharma"),
+    ("Lupin", "LUPIN", "Pharma"),
+    ("Aurobindo Pharma", "AUROPHARMA", "Pharma"),
+    ("Torrent Pharmaceuticals", "TORNTPHARM", "Pharma"),
+    ("Muthoot Finance", "MUTHOOTFIN", "NBFC"),
+    ("Cholamandalam Investment", "CHOLAFIN", "NBFC"),
+    ("LIC Housing Finance", "LICHSGFIN", "NBFC"),
+    ("PNB Housing Finance", "PNBHOUSING", "NBFC"),
+    ("Bank of Baroda", "BANKBARODA", "Banking"),
+    ("Punjab National Bank", "PNB", "Banking"),
+    ("Canara Bank", "CANBK", "Banking"),
+    ("Union Bank of India", "UNIONBANK", "Banking"),
+    ("Federal Bank", "FEDERALBNK", "Banking"),
+    ("IDFC First Bank", "IDFCFIRSTB", "Banking"),
+    ("Yes Bank", "YESBANK", "Banking"),
+    ("RBL Bank", "RBLBANK", "Banking"),
+    ("Bandhan Bank", "BANDHANBNK", "Banking"),
+    ("Manappuram Finance", "MANAPPURAM", "NBFC"),
+    ("Motherson Sumi", "MOTHERSON", "Auto Ancillary"),
+    ("Bosch", "BOSCHLTD", "Auto Ancillary"),
+    ("Bharat Forge", "BHARATFORG", "Auto Ancillary"),
+    ("Exide Industries", "EXIDEIND", "Auto Ancillary"),
+    ("Amara Raja Energy", "AMARAJABAT", "Auto Ancillary"),
+    ("Cummins India", "CUMMINSIND", "Industrial"),
+    ("ABB India", "ABB", "Industrial"),
+    ("Siemens", "SIEMENS", "Industrial"),
+    ("Thermax", "THERMAX", "Industrial"),
+    ("Bharat Heavy Electricals", "BHEL", "Industrial"),
+    ("GAIL India", "GAIL", "Energy"),
+    ("Petronet LNG", "PETRONET", "Energy"),
+    ("Gujarat Gas", "GUJGASLTD", "Energy"),
+    ("Indraprastha Gas", "IGL", "Energy"),
+    ("Mahanagar Gas", "MGL", "Energy"),
+    ("Tata Chemicals", "TATACHEM", "Chemicals"),
+    ("UPL", "UPL", "Agrochemicals"),
+    ("PI Industries", "PIIND", "Agrochemicals"),
+    ("Coromandel International", "COROMANDEL", "Agrochemicals"),
+    ("Jubilant FoodWorks", "JUBLFOOD", "QSR"),
+    ("Westlife Foodworld", "WESTLIFE", "QSR"),
+    ("Devyani International", "DEVYANI", "QSR"),
+    ("Sapphire Foods", "SAPPHIRE", "QSR"),
+    ("Dixon Technologies", "DIXON", "Electronics"),
+    ("Amber Enterprises", "AMBER", "Electronics"),
+    ("Kaynes Technology", "KAYNES", "Electronics"),
+    ("Tata Elxsi", "TATAELXSI", "IT"),
+    ("Persistent Systems", "PERSISTENT", "IT"),
+    ("Mphasis", "MPHASIS", "IT"),
+    ("L&T Technology Services", "LTTS", "IT"),
+    ("Coforge", "COFORGE", "IT"),
+    ("Zensar Technologies", "ZENSARTECH", "IT"),
+    ("Mastek", "MASTEK", "IT"),
+    ("Happiest Minds", "HAPPSTMNDS", "IT"),
+    ("Tanla Platforms", "TANLA", "IT"),
+    ("Nazara Technologies", "NAZARA", "Gaming"),
+    ("Info Edge", "NAUKRI", "Internet"),
+    ("Just Dial", "JUSTDIAL", "Internet"),
+    ("Matrimony.com", "MATRIMONY", "Internet"),
+    ("Policybazaar", "POLICYBZR", "Fintech"),
+    ("Fino Payments Bank", "FINOPB", "Banking"),
+    ("Ujjivan Small Finance Bank", "UJJIVANSFB", "Banking"),
+    ("AU Small Finance Bank", "AUBANK", "Banking"),
+    ("Equitas Small Finance Bank", "EQUITASBNK", "Banking"),
+    ("Suryoday Small Finance Bank", "SURYODAY", "Banking"),
+    ("Shriram City Union Finance", "SHRIRAMCIT", "NBFC"),
+    ("Aavas Financiers", "AAVAS", "NBFC"),
+    ("Home First Finance", "HOMEFIRST", "NBFC"),
+    ("Aptus Value Housing Finance", "APTUS", "NBFC"),
+    ("Five Star Business Finance", "FIVESTAR", "NBFC"),
+    ("Creditaccess Grameen", "CREDITACC", "Microfinance"),
+    ("Spandana Sphoorty", "SPANDANA", "Microfinance"),
+    ("Fusion Micro Finance", "FUSION", "Microfinance"),
+    ("Satin Creditcare", "SATIN", "Microfinance"),
+    ("Arman Financial Services", "ARMANFIN", "Microfinance"),
+]
+
+def seed():
+    db = SessionLocal()
+    try:
+        existing = {r.symbol for r in db.query(CompanyMaster.symbol).all()}
+        added = 0
+        for name, symbol, sector in FNO_COMPANIES:
+            if symbol in existing:
+                continue
+            obj = CompanyMaster(
+                company_name=name,
+                symbol=symbol,
+                exchange="NSE",
+                sector=sector,
+                is_fno=True,
+                is_active=True,
+            )
+            db.add(obj)
+            added += 1
+        db.commit()
+        total = db.query(CompanyMaster).filter(CompanyMaster.is_fno == True).count()
+        print(f"Seeded {added} new companies. Total F&O companies: {total}")
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    seed()

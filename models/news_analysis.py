@@ -25,6 +25,14 @@ class NewsAnalysis(Base):
 
     reason = Column(Text)
 
+    news_type = Column(String(30), nullable=True)
+
+    importance_score = Column(Integer, nullable=True)
+
+    signal_status = Column(String(30), nullable=True)
+
+    rejection_reason = Column(Text, nullable=True)
+
     created_on = Column(
         TIMESTAMP(timezone=True),
         server_default=func.now()

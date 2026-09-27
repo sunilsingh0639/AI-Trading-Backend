@@ -58,6 +58,7 @@ class CompanyRepository:
     @staticmethod
     def find_in_title(db: Session, title: str):
         """Return the most specific active F&O company mentioned in a headline."""
+        import re
         normalized_title = (title or "").upper()
         companies = CompanyRepository.get_all_fno_companies(db)
 
@@ -68,7 +69,10 @@ class CompanyRepository:
         ):
             name = (company.company_name or "").upper()
             symbol = (company.symbol or "").upper()
-            if (name and name in normalized_title) or (symbol and symbol in normalized_title):
+            # Use word-boundary matching to avoid false positives like HAL in "Half"
+            if name and re.search(r'\b' + re.escape(name) + r'\b', normalized_title):
+                return company
+            if symbol and len(symbol) >= 3 and re.search(r'\b' + re.escape(symbol) + r'\b', normalized_title):
                 return company
         return None
 

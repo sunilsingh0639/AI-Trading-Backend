@@ -120,13 +120,21 @@ class PredictionEvaluationService:
         evaluations = PredictionEvaluationRepository.get_all(db)
         total = len(evaluations)
         correct = sum(1 for row in evaluations if row.is_correct)
+        false_positives = sum(
+            1 for row in evaluations if not row.is_correct and row.realised_return_pct <= 0
+        )
+        false_negatives = 0  # Requires tracking missed opportunities separately
         average_return = (
             sum(row.realised_return_pct for row in evaluations) / total if total else 0.0
         )
+        total_profit_pct = sum(row.realised_return_pct for row in evaluations)
         return {
             "totalEvaluated": total,
             "correct": correct,
             "hitRatePercent": round((correct / total) * 100, 2) if total else None,
             "averageReturnPercent": round(average_return, 4),
+            "totalProfitLossPercent": round(total_profit_pct, 4),
+            "falsePositives": false_positives,
+            "falseNegatives": false_negatives,
             "note": "Measured realised outcomes, not a future-performance guarantee.",
         }

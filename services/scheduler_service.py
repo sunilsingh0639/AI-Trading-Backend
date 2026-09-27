@@ -80,7 +80,16 @@ def scheduled_job():
         try:
             print("\n[3] Analyzing Pending News...")
             analysis_result = AnalysisService.analyze_pending_news(db)
-            print("Analysis Result:", analysis_result)
+            print("Analysis Result:", {
+                k: v for k, v in analysis_result.items() if k != "details"
+            })
+            for item in analysis_result.get("details", []):
+                print(
+                    f"  - news_id={item.get('news_id')} status={item.get('status')} "
+                    f"type={item.get('news_type')} importance={item.get('importance')} "
+                    f"rec={item.get('recommendation')} signal={item.get('signal_created')} "
+                    f"reason={item.get('rejection_reason') or item.get('reason')}"
+                )
         except Exception as e:
             db.rollback()
             print("Analysis Failed:", str(e))

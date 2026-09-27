@@ -1,4 +1,5 @@
 class NewsImportanceService:
+    """Score headline relevance so weak noise is filtered before LLM cost."""
 
     HIGH_PRIORITY = [
         "RBI",
@@ -21,7 +22,17 @@ class NewsImportanceService:
         "ACQUISITION",
         "IPO",
         "BONUS",
-        "SPLIT"
+        "SPLIT",
+        "DIVIDEND",
+        "BUYBACK",
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4",
+        "QUARTER",
+        "PROFIT",
+        "LOSS",
+        "REVENUE",
     ]
 
     MEDIUM_PRIORITY = [
@@ -32,27 +43,64 @@ class NewsImportanceService:
         "EXPANSION",
         "ORDER",
         "CONTRACT",
-        "PARTNERSHIP"
+        "PARTNERSHIP",
+        "DEAL",
+        "LAUNCH",
+        "APPROVAL",
+        "RAISE",
+        "CUT",
+        "HIKE",
+        "STAKE",
+        "INVEST",
     ]
 
-    @staticmethod
-    def get_score(title: str):
+    LOW_VALUE = [
+        "OPINION",
+        "EDITORIAL",
+        "PODCAST",
+        "WEBINAR",
+        "QUIZ",
+        "HOROSCOPE",
+        "RECIPE",
+        "MOVIE",
+        "CRICKET SCORE",
+        "BOLLYWOOD",
+    ]
 
-        title = (title or "").upper()
+    @classmethod
+    def get_score(
+        cls,
+        title: str,
+        news_type: str | None = None,
+        has_company: bool = False,
+    ) -> int:
+        """Return 0-100 importance. Company-linked headlines start higher."""
+        normalized = (title or "").upper()
+        if not normalized.strip():
+            return 0
 
-        score = 10
+        for keyword in cls.LOW_VALUE:
+            if keyword in normalized:
+                return 5
 
-        for keyword in NewsImportanceService.HIGH_PRIORITY:
+        score = 25
 
-            if keyword in title:
-                score += 40
+        if has_company:
+            score += 25
 
-        for keyword in NewsImportanceService.MEDIUM_PRIORITY:
+        if news_type == "STOCK":
+            score += 15
+        elif news_type in {"MACRO", "COMMODITY", "GLOBAL"}:
+            score += 10
+        elif news_type == "IGNORE":
+            return 0
 
-            if keyword in title:
-                score += 20
+        for keyword in cls.HIGH_PRIORITY:
+            if keyword in normalized:
+                score += 30
 
-        if score > 100:
-            score = 100
+        for keyword in cls.MEDIUM_PRIORITY:
+            if keyword in normalized:
+                score += 15
 
-        return score
+        return min(score, 100)

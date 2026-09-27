@@ -31,6 +31,16 @@ class PredictionHistory(Base):
 
     stop_loss = Column(Float, nullable=True)
 
+    risk_reward_ratio = Column(Float, nullable=True)
+
+    expected_holding_minutes = Column(Integer, nullable=True)
+
+    probability = Column(Float, nullable=True)
+
+    market_context = Column(String, nullable=True)
+
+    supporting_indicators = Column(String, nullable=True)
+
     status = Column(String(20), default="PENDING", index=True)
 
     created_on = Column(
