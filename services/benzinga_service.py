@@ -39,6 +39,9 @@ def fetch_benzinga_news() -> list[dict]:
         raise RuntimeError(f"HTTP {response.status_code} — Benzinga authentication error.")
     response.raise_for_status()
 
+    if not response.content or not response.text.strip():
+        raise RuntimeError("Benzinga returned an empty response body.")
+
     data = response.json()
 
     # Benzinga returns a list directly or wrapped in a key

@@ -98,8 +98,11 @@ def google_news():
 
 
 @app.get("/finnhub-news")
-def finnhub_news(symbol: str = Query("AAPL", min_length=1, max_length=20)):
-    return get_finnhub_news(symbol)
+def finnhub_news(symbol: str = Query(None, min_length=1, max_length=20)):
+    try:
+        return get_finnhub_news(symbol or None)
+    except Exception as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
 
 @app.get("/all-news")

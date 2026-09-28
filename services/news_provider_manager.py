@@ -143,18 +143,22 @@ class ProviderResult:
 # _call_provider — wraps a single provider fetch with timeout + error mapping
 # ---------------------------------------------------------------------------
 def _classify_error(exc: Exception) -> str:
+    import json
+    # Check exception type first — more reliable than string matching
+    if isinstance(exc, json.JSONDecodeError):
+        return STATUS_INVALID_RESPONSE
     msg = str(exc).lower()
     if "429" in msg or "rate limit" in msg or "too many requests" in msg:
         return STATUS_RATE_LIMITED
     if "401" in msg or "403" in msg or "authentication" in msg or "api key" in msg or "unauthorized" in msg:
         return STATUS_AUTH_ERROR
-    if "5" in msg and ("500" in msg or "502" in msg or "503" in msg or "504" in msg):
+    if "500" in msg or "502" in msg or "503" in msg or "504" in msg:
         return STATUS_SERVER_ERROR
     if "timeout" in msg or "timed out" in msg or "read timeout" in msg:
         return STATUS_TIMEOUT
     if "connection" in msg or "network" in msg or "name or service" in msg:
         return STATUS_NETWORK_ERROR
-    if "json" in msg or "invalid" in msg or "unexpected" in msg:
+    if "expecting value" in msg or "json" in msg or "invalid" in msg or "unexpected" in msg:
         return STATUS_INVALID_RESPONSE
     return STATUS_SERVER_ERROR
 
@@ -197,8 +201,8 @@ def _call_provider(
         except Exception as exc:
             last_exc = exc
             status = _classify_error(exc)
-            # Do not retry auth errors
-            if status == STATUS_AUTH_ERROR:
+            # Do not retry auth, rate-limit, or invalid-response errors
+            if status in (STATUS_AUTH_ERROR, STATUS_RATE_LIMITED, STATUS_INVALID_RESPONSE):
                 break
             # Only retry once for timeout/server errors
             if attempt == 0 and status in (STATUS_TIMEOUT, STATUS_SERVER_ERROR):
