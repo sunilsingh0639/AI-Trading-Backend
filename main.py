@@ -321,6 +321,13 @@ def get_latest_analysis(db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/news/providers/status")
+def news_providers_status():
+    """Return operational health of all news providers. Never exposes API keys."""
+    from services.news_provider_manager import get_all_provider_health
+    return {"providers": get_all_provider_health()}
+
+
 @app.get("/api/status")
 def system_status(db: Session = Depends(get_db)):
     """Overall system status for frontend display."""
