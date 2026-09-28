@@ -26,6 +26,7 @@ PREDICTION_HISTORY_COLUMNS = {
 MARKET_NEWS_COLUMNS = {
     "symbols": "TEXT",
     "provider": "VARCHAR(50)",
+    "entities": "TEXT",
 }
 
 

@@ -488,12 +488,21 @@ def resolve_symbol(
 
 def _match_text_to_company(db, upper_text: str, method_prefix: str):
     """Try alias map first, then DB word-boundary scan."""
-    # Alias map — longest match wins (sorted by length desc at module load)
+    # Alias map — longest match wins (sorted by length desc at module load).
+    # Continue through ALL aliases even if one fires but has no DB row —
+    # a shorter alias further down the list may still resolve correctly.
     for alias, canonical in _SORTED_ALIASES:
         if re.search(r"\b" + re.escape(alias) + r"\b", upper_text):
             company = _lookup_by_name(db, canonical)
             if company:
                 return _make_result(company, f"{method_prefix}_alias", upper_text[:80])
+            # Alias fired but company_master has no matching row — log once
+            # and keep iterating so shorter/more-specific aliases still run.
+            logger.warning(
+                "[SYMBOL_MAPPING] alias='%s' canonical='%s' NOT IN company_master — "
+                "continuing alias scan",
+                alias, canonical,
+            )
 
     # DB word-boundary scan (existing logic in CompanyRepository)
     from repositories.company_repository import CompanyRepository
@@ -552,7 +561,7 @@ def _log_mapping(
     provider_entities=None,
 ):
     logger.info(
-        "[SYMBOL_MAPPING_TEST]\n"
+        "[SYMBOL_MAPPING]\n"
         "  news_id=%s\n"
         "  headline=%s\n"
         "  provider=%s\n"

@@ -212,15 +212,26 @@ class AnalysisService:
                 # Pull any provider-supplied symbols/entities stored on the
                 # news row (populated by aggregator for Benzinga/MarketAux/
                 # Finnhub/Alpha Vantage articles).
+                import json as _json
+
                 provider_symbols: list[str] = []
                 provider_entities: list[str] = []
+
                 if getattr(news, "symbols", None):
                     try:
-                        import json as _json
                         raw = news.symbols
                         parsed = _json.loads(raw) if isinstance(raw, str) else raw
                         if isinstance(parsed, list):
                             provider_symbols = [str(s) for s in parsed if s]
+                    except Exception:
+                        pass
+
+                if getattr(news, "entities", None):
+                    try:
+                        raw = news.entities
+                        parsed = _json.loads(raw) if isinstance(raw, str) else raw
+                        if isinstance(parsed, list):
+                            provider_entities = [str(e) for e in parsed if e]
                     except Exception:
                         pass
 
@@ -371,6 +382,7 @@ class AnalysisService:
                 signal_status = "ANALYZED"
                 rejection_reason = None
 
+                # ── Entry-price guard and signal status ──────────────────
                 if trade_plan:
                     result["trade_plan"] = trade_plan
                     # Guard: a signal without an entry price cannot be evaluated
@@ -408,6 +420,31 @@ class AnalysisService:
                         int(result.get("confidence", 0)),
                         rejection_reasons or [rejection_reason],
                     )
+
+                # ── Structured signal-decision log (after all guards) ────────
+                logger.info(
+                    "[SIGNAL_DECISION]\n"
+                    "  news_id=%s\n"
+                    "  symbol=%s\n"
+                    "  ai_recommendation=%s\n"
+                    "  ai_confidence=%s\n"
+                    "  technical_signal=%s\n"
+                    "  technical_score=%s\n"
+                    "  combined_confidence=%s\n"
+                    "  final_signal=%s\n"
+                    "  signal_created=%s\n"
+                    "  reason=%s",
+                    news.id,
+                    result.get("symbol"),
+                    result.get("recommendation"),
+                    result.get("confidence"),
+                    trade_plan.get("recommendation") if trade_plan else "NONE",
+                    trade_plan.get("technical_score") if trade_plan else None,
+                    trade_plan.get("confidence") if trade_plan else None,
+                    trade_plan.get("recommendation") if trade_plan else "REJECTED",
+                    trade_plan is not None,
+                    rejection_reason or (trade_plan.get("reason") if trade_plan else None),
+                )
 
                 AnalysisRepository.save_analysis(
                     db,

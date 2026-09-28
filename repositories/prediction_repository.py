@@ -1,9 +1,12 @@
 import json
+import logging
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from models.prediction_history import PredictionHistory
+
+logger = logging.getLogger(__name__)
 
 
 class PredictionRepository:
@@ -59,6 +62,28 @@ class PredictionRepository:
 
         db.add(prediction)
         db.flush()
+
+        logger.info(
+            "[PREDICTION_CREATED]\n"
+            "  prediction_id=%s\n"
+            "  symbol=%s\n"
+            "  direction=%s\n"
+            "  entry=%s\n"
+            "  stop_loss=%s\n"
+            "  target=%s\n"
+            "  confidence=%s\n"
+            "  horizon=%s\n"
+            "  news_id=%s",
+            prediction.id,
+            prediction.symbol,
+            prediction.recommendation,
+            prediction.entry_price,
+            prediction.stop_loss,
+            prediction.target_price,
+            prediction.confidence,
+            prediction.expected_holding_minutes,
+            prediction.news_id,
+        )
 
         return prediction
 

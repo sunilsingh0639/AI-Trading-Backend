@@ -25,6 +25,23 @@ class NewsRepository:
             if clean:
                 symbols_str = _json.dumps(clean)
 
+        # Serialise provider entity names list → JSON string for storage
+        entities_raw = news.get("entities")
+        entities_str: str | None = None
+        if entities_raw and isinstance(entities_raw, list):
+            # Each entity may be a dict {name, symbol, ...} or a plain string.
+            # We store only the name strings so resolve_symbol() can match them.
+            names = []
+            for e in entities_raw:
+                if isinstance(e, dict):
+                    name = (e.get("name") or "").strip()
+                    if name:
+                        names.append(name)
+                elif isinstance(e, str) and e.strip():
+                    names.append(e.strip())
+            if names:
+                entities_str = _json.dumps(names)
+
         db_news = MarketNews(
             title=news.get("title"),
             description=news.get("description"),
@@ -33,6 +50,7 @@ class NewsRepository:
             published=news.get("published"),
             sentiment=news.get("sentiment"),
             symbols=symbols_str,
+            entities=entities_str,
             provider=news.get("provider"),
         )
 

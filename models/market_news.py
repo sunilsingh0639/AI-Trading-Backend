@@ -27,6 +27,10 @@ class MarketNews(Base):
     # Populated by aggregator for Benzinga/MarketAux/Finnhub/Alpha Vantage articles.
     symbols = Column(Text, nullable=True)
 
+    # Provider-supplied entity names (JSON array string, e.g. '["Reliance Industries"]')
+    # Populated from the entities list returned by MarketAux and Benzinga.
+    entities = Column(Text, nullable=True)
+
     # Provider name (benzinga, marketaux, finnhub, alpha_vantage, newsapi, google_news)
     provider = Column(String(50), nullable=True)
 
