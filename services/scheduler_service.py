@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -12,6 +13,16 @@ from services.sync_service import SyncService
 
 logger = logging.getLogger(__name__)
 scheduler = BackgroundScheduler(timezone=ZoneInfo("Asia/Kolkata"))
+
+
+def _safe_print(text: str) -> None:
+    """Print to stdout, replacing unencodable characters so Windows console never crashes."""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(
+            sys.stdout.encoding or "utf-8", errors="replace"
+        ))
 
 
 # def scheduled_job():
@@ -50,65 +61,64 @@ scheduler = BackgroundScheduler(timezone=ZoneInfo("Asia/Kolkata"))
 from datetime import datetime
 
 def scheduled_job():
-    print("\n" + "=" * 80)
-    print(f"[{datetime.now()}] Scheduler Job Started")
-    print("=" * 80)
+    _safe_print("\n" + "=" * 80)
+    _safe_print(f"[{datetime.now()}] Scheduler Job Started")
+    _safe_print("=" * 80)
 
     db = SessionLocal()
     try:
         # News Sync
         try:
-            print("\n[1] Syncing News...")
+            _safe_print("\n[1] Syncing News...")
             sync_result = SyncService.sync_news(db)
-            print("News Sync Result:", sync_result)
+            _safe_print(f"News Sync Result: {sync_result}")
         except Exception as e:
             db.rollback()
-            print("News Sync Failed:", str(e))
+            _safe_print(f"News Sync Failed: {e}")
             logger.exception("Scheduled news sync failed")
 
         # Market Snapshot
         try:
-            print("\n[2] Saving Market Snapshot...")
+            _safe_print("\n[2] Saving Market Snapshot...")
             snapshot = MarketSnapshotService.save_snapshot(db)
-            print("Snapshot Saved:", snapshot.id if snapshot else None)
+            _safe_print(f"Snapshot Saved: {snapshot.id if snapshot else None}")
         except Exception as e:
             db.rollback()
-            print("Market Snapshot Failed:", str(e))
+            _safe_print(f"Market Snapshot Failed: {e}")
             logger.exception("Scheduled market snapshot failed")
 
         # AI Analysis
         try:
-            print("\n[3] Analyzing Pending News...")
+            _safe_print("\n[3] Analyzing Pending News...")
             analysis_result = AnalysisService.analyze_pending_news(db)
-            print("Analysis Result:", {
-                k: v for k, v in analysis_result.items() if k != "details"
-            })
+            _safe_print(f"Analysis Result: { {k: v for k, v in analysis_result.items() if k != 'details'} }")
             for item in analysis_result.get("details", []):
-                print(
+                line = (
                     f"  - news_id={item.get('news_id')} status={item.get('status')} "
                     f"type={item.get('news_type')} importance={item.get('importance')} "
                     f"rec={item.get('recommendation')} signal={item.get('signal_created')} "
                     f"reason={item.get('rejection_reason') or item.get('reason')}"
                 )
+                _safe_print(line)
         except Exception as e:
             db.rollback()
-            print("Analysis Failed:", str(e))
+            _safe_print(f"Analysis Failed: {e}")
             logger.exception("Scheduled news analysis failed")
 
         # Prediction Evaluation
         try:
-            print("\n[4] Evaluating Predictions...")
+            _safe_print("\n[4] Evaluating Predictions...")
             evaluation_result = PredictionEvaluationService.evaluate_due_predictions(db)
-            print("Evaluation Result:", evaluation_result)
+            _safe_print(f"Evaluation Result: {evaluation_result}")
         except Exception as e:
             db.rollback()
-            print("Prediction Evaluation Failed:", str(e))
+            _safe_print(f"Prediction Evaluation Failed: {e}")
             logger.exception("Scheduled prediction evaluation failed")
 
     finally:
         db.close()
-        print(f"[{datetime.now()}] Scheduler Job Finished")
-        print("=" * 80)
+        _safe_print(f"[{datetime.now()}] Scheduler Job Finished")
+        _safe_print("=" * 80)
 def start_scheduler():
     if os.getenv("SCHEDULER_ENABLED", "true").lower() not in {"1", "true", "yes"}:
         logger.info("Scheduler is disabled by SCHEDULER_ENABLED.")

@@ -66,9 +66,8 @@ _ALIASES: dict[str, str] = {
     "KOTAK MAHINDRA": "Kotak Mahindra Bank",
     "KOTAK MAHINDRA BANK": "Kotak Mahindra Bank",
     "KOTAKBANK": "Kotak Mahindra Bank",
-    # L&T
+    # L&T — only match the full form, not bare "LT" (too ambiguous in English text)
     "L&T": "Larsen & Toubro",
-    "LT": "Larsen & Toubro",
     "LARSEN": "Larsen & Toubro",
     "LARSEN & TOUBRO": "Larsen & Toubro",
     "LARSEN AND TOUBRO": "Larsen & Toubro",
@@ -217,9 +216,8 @@ _ALIASES: dict[str, str] = {
     # Zydus
     "ZYDUS": "Zydus Lifesciences",
     "ZYDUSLIFE": "Zydus Lifesciences",
-    # Bank of Baroda
+    # Bank of Baroda — "BOB" is too ambiguous (common English word/name)
     "BANK OF BARODA": "Bank of Baroda",
-    "BOB": "Bank of Baroda",
     "BANKBARODA": "Bank of Baroda",
     # PNB
     "PNB": "Punjab National Bank",
@@ -548,11 +546,30 @@ def _log_mapping(
     yahoo_symbol,
     status: str,
     reason,
+    news_id=None,
+    provider=None,
+    provider_symbols=None,
+    provider_entities=None,
 ):
     logger.info(
-        "[SYMBOL_MAPPING] headline=%s | detected_entity=%s | match_method=%s | "
-        "matched_company=%s | nse_symbol=%s | yahoo_symbol=%s | status=%s | reason=%s",
-        (headline or "")[:100],
+        "[SYMBOL_MAPPING_TEST]\n"
+        "  news_id=%s\n"
+        "  headline=%s\n"
+        "  provider=%s\n"
+        "  provider_symbols=%s\n"
+        "  provider_entities=%s\n"
+        "  detected_entity=%s\n"
+        "  match_method=%s\n"
+        "  matched_company=%s\n"
+        "  nse_symbol=%s\n"
+        "  yahoo_symbol=%s\n"
+        "  status=%s\n"
+        "  reason=%s",
+        news_id,
+        (headline or "")[:120],
+        provider,
+        provider_symbols,
+        provider_entities,
         detected_entity,
         match_method,
         matched_company,

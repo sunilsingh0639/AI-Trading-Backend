@@ -23,8 +23,19 @@ class MarketSnapshotService:
     @classmethod
     def _last_price(cls, ticker: str) -> float | None:
         try:
-            value = yf.Ticker(ticker).fast_info.get("lastPrice")
-            return float(value) if value is not None else None
+            t = yf.Ticker(ticker)
+            # fast_info key set changed across yfinance versions; try multiple paths
+            try:
+                value = t.fast_info.get("lastPrice") or t.fast_info.get("last_price")
+                if value is not None:
+                    return float(value)
+            except Exception:
+                pass
+            # Fallback: last close from 1-day history
+            hist = t.history(period="1d", interval="1m", auto_adjust=True)
+            if hist is not None and not hist.empty:
+                return float(hist["Close"].iloc[-1])
+            return None
         except Exception as error:
             cls.logger.warning("Could not fetch quote for %s: %s", ticker, error)
             return None

@@ -454,18 +454,48 @@ class AnalysisService:
                     }
                 )
 
-            except Exception:
+            except Exception as exc:
                 db.rollback()
-                failed += 1
-                logger.exception("Could not analyse news id %s", news.id)
-                details.append(
-                    {
-                        "news_id": news.id,
-                        "status": "FAILED",
-                        "company": company_name,
-                        "reason": "Exception during analysis",
-                    }
+                exc_str = str(exc)
+                # If the AI provider is unreachable, mark the news as processed
+                # so it does not block the queue indefinitely. It will not be
+                # retried — a fresh article will replace it next cycle.
+                is_ai_network_error = (
+                    "getaddrinfo failed" in exc_str
+                    or "APIConnectionError" in exc_str
+                    or "ConnectError" in exc_str
+                    or "Connection error" in exc_str
                 )
+                if is_ai_network_error:
+                    try:
+                        NewsRepository.update_ai_status(db, news)
+                        db.commit()
+                        logger.warning(
+                            "[ANALYSIS] AI unreachable for news_id=%s — marked processed to unblock queue",
+                            news.id,
+                        )
+                    except Exception:
+                        db.rollback()
+                    failed += 1
+                    details.append(
+                        {
+                            "news_id": news.id,
+                            "status": "AI_UNAVAILABLE",
+                            "company": company_name,
+                            "reason": "AI provider unreachable (network error)",
+                        }
+                    )
+                else:
+                    failed += 1
+                    logger.exception("Could not analyse news id %s", news.id)
+                    details.append(
+                        {
+                            "news_id": news.id,
+                            "status": "FAILED",
+                            "company": company_name,
+                            "reason": "Exception during analysis",
+                        }
+                    )
 
         return {
             "processed": processed,
