@@ -8,7 +8,7 @@ A single provider failure never blocks or stops the pipeline.
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
@@ -248,37 +248,57 @@ def fetch_all_providers() -> tuple[list[dict], dict[str, dict]]:
     """
     Call all registered providers in parallel.
     Returns (normalized_articles, provider_summary).
-    Never raises — failed providers are recorded and skipped.
+
+    Never raises — a slow or failed provider is recorded individually and
+    skipped.  The global as_completed() timeout is intentionally NOT used
+    because it raises TimeoutError when any future is still running, which
+    would crash the entire fetch.  Instead every future is resolved with its
+    own per-provider deadline so only the offending provider is marked TIMEOUT.
     """
     if not _providers:
         logger.warning("[NEWS][MANAGER] No providers registered.")
         return [], {}
 
+    # Per-provider deadline: the fetch_fn already enforces _TIMEOUT via the
+    # requests timeout, so we give the future a small grace period on top.
+    _FUTURE_DEADLINE = _TIMEOUT + 3
+
     results: list[ProviderResult] = []
 
-    with ThreadPoolExecutor(max_workers=len(_providers), thread_name_prefix="news_provider") as pool:
+    # Submit all providers at once so they run truly in parallel.
+    with ThreadPoolExecutor(
+        max_workers=len(_providers), thread_name_prefix="news_provider"
+    ) as pool:
         future_to_entry = {
             pool.submit(_call_provider, entry.name, entry.priority, entry.fetch_fn): entry
             for entry in _providers
         }
-        for future in as_completed(future_to_entry, timeout=_TIMEOUT + 5):
-            entry = future_to_entry[future]
+
+        # Collect results one-by-one with an individual deadline.
+        # Do NOT use as_completed(..., timeout=...) — its global timeout
+        # raises concurrent.futures.TimeoutError and aborts the whole loop.
+        for future, entry in future_to_entry.items():
             try:
-                result = future.result(timeout=_TIMEOUT + 2)
+                result = future.result(timeout=_FUTURE_DEADLINE)
             except FuturesTimeoutError:
-                elapsed = (_TIMEOUT + 2) * 1000
+                elapsed = _FUTURE_DEADLINE * 1000
                 health = _get_health(entry.name, entry.priority)
-                health.record_failure(STATUS_TIMEOUT, "Future timeout", elapsed)
-                logger.warning("[NEWS][%s] TIMEOUT (future level)", entry.name.upper())
+                health.record_failure(STATUS_TIMEOUT, "Provider exceeded deadline", elapsed)
+                logger.warning(
+                    "[NEWS][%s] TIMEOUT | exceeded %ds deadline",
+                    entry.name.upper(), _FUTURE_DEADLINE,
+                )
                 result = ProviderResult(
                     provider=entry.name, status=STATUS_TIMEOUT,
                     articles=[], count=0, response_time_ms=elapsed,
-                    error="Request timeout",
+                    error=f"Provider exceeded {_FUTURE_DEADLINE}s deadline",
                 )
             except Exception as exc:
-                elapsed = 0
                 health = _get_health(entry.name, entry.priority)
-                health.record_failure(STATUS_SERVER_ERROR, str(exc), elapsed)
+                health.record_failure(STATUS_SERVER_ERROR, str(exc), 0)
+                logger.warning(
+                    "[NEWS][%s] UNEXPECTED ERROR | %s", entry.name.upper(), exc
+                )
                 result = ProviderResult(
                     provider=entry.name, status=STATUS_SERVER_ERROR,
                     articles=[], count=0, response_time_ms=0, error=str(exc),
@@ -293,10 +313,9 @@ def fetch_all_providers() -> tuple[list[dict], dict[str, dict]]:
         provider_summary[r.provider] = {"status": r.status, "count": r.count}
 
     total_fetched = sum(r.count for r in results)
+    failed_count = sum(1 for r in results if r.status != STATUS_HEALTHY)
     logger.info(
         "[NEWS][MANAGER] Total fetched: %d from %d providers (%d failed)",
-        total_fetched,
-        len(results),
-        sum(1 for r in results if r.status != STATUS_HEALTHY),
+        total_fetched, len(results), failed_count,
     )
     return all_articles, provider_summary
