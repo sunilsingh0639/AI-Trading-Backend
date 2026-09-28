@@ -12,6 +12,7 @@ from services.news_filter_service import NewsFilterService
 from services.news_importance_service import NewsImportanceService
 from services.pipeline_debug_service import PipelineDebugService
 from services.prediction_service import PredictionService
+from services.symbol_mapping_service import resolve_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -207,13 +208,40 @@ class AnalysisService:
                     news.id, "CLASSIFICATION", news.title, {"news_type": news_type}
                 )
 
-                company = CompanyRepository.find_in_title(db, news.title)
-                company_name = company.company_name if company else None
+                # ── Symbol resolution (multi-strategy) ──────────────────
+                # Pull any provider-supplied symbols/entities stored on the
+                # news row (populated by aggregator for Benzinga/MarketAux/
+                # Finnhub/Alpha Vantage articles).
+                provider_symbols: list[str] = []
+                provider_entities: list[str] = []
+                if hasattr(news, "symbols") and news.symbols:
+                    try:
+                        import json as _json
+                        raw = news.symbols
+                        parsed = _json.loads(raw) if isinstance(raw, str) else raw
+                        if isinstance(parsed, list):
+                            provider_symbols = [str(s) for s in parsed if s]
+                    except Exception:
+                        pass
+
+                mapping = resolve_symbol(
+                    db,
+                    title=news.title,
+                    description=news.description or "",
+                    provider_symbols=provider_symbols,
+                    provider_entities=provider_entities,
+                )
+
+                # Build company object compatible with downstream code
+                company = None
+                if mapping.status == "SUCCESS":
+                    company = CompanyRepository.get_by_symbol(db, mapping.nse_symbol)
+                company_name = mapping.company_name
 
                 importance = NewsImportanceService.get_score(
                     news.title,
                     news_type=news_type,
-                    has_company=company is not None,
+                    has_company=mapping.status == "SUCCESS",
                 )
                 PipelineDebugService.log_stage(
                     news.id,
@@ -292,10 +320,38 @@ class AnalysisService:
                     },
                 )
 
-                if company:
+                # ── Override AI symbol with reliably resolved mapping ────
+                if mapping.status == "SUCCESS":
+                    result["stock_name"] = mapping.company_name
+                    result["symbol"] = mapping.nse_symbol
+                    result["sector"] = mapping.sector or result.get("sector", "MARKET")
+                elif mapping.status == "CONTEXT_ONLY":
+                    # Global/macro — keep AI result but clear symbol so no
+                    # direct stock signal is generated
+                    result["symbol"] = None
+                elif company:
+                    # Fallback: original find_in_title result (should rarely
+                    # reach here now, but kept for safety)
                     result["stock_name"] = company.company_name
                     result["symbol"] = company.symbol
-                    result["sector"] = company.sector or result["sector"]
+                    result["sector"] = company.sector or result.get("sector", "MARKET")
+                else:
+                    # No mapping at all — validate AI symbol against DB before
+                    # trusting it (AI can hallucinate symbols)
+                    ai_sym = result.get("symbol")
+                    if ai_sym:
+                        validated = resolve_symbol(
+                            db,
+                            title=news.title,
+                            description=news.description or "",
+                            ai_symbol=ai_sym,
+                        )
+                        if validated.status == "SUCCESS":
+                            result["stock_name"] = validated.company_name
+                            result["symbol"] = validated.nse_symbol
+                            result["sector"] = validated.sector or result.get("sector", "MARKET")
+                        else:
+                            result["symbol"] = None
 
                 PipelineDebugService.log_stage(
                     news.id,

@@ -1,4 +1,5 @@
 from repositories.company_repository import CompanyRepository
+from services.symbol_mapping_service import _SORTED_ALIASES
 
 
 class NewsFilterService:
@@ -91,6 +92,11 @@ class NewsFilterService:
             if name and re.search(r'\b' + re.escape(name) + r'\b', normalized):
                 return "STOCK"
             if symbol and len(symbol) >= 3 and re.search(r'\b' + re.escape(symbol) + r'\b', normalized):
+                return "STOCK"
+
+        # Also check alias map so "RIL", "TCS", "HUL" etc. classify as STOCK
+        for alias, _ in _SORTED_ALIASES:
+            if len(alias) >= 3 and re.search(r'\b' + re.escape(alias) + r'\b', normalized):
                 return "STOCK"
 
         return "GENERAL"
