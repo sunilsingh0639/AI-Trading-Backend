@@ -15,6 +15,15 @@ class NewsRepository:
 
     @staticmethod
     def save_news(db: Session, news):
+        import json as _json
+
+        # Serialise provider symbols list → JSON string for storage
+        symbols_raw = news.get("symbols")
+        symbols_str: str | None = None
+        if symbols_raw and isinstance(symbols_raw, list):
+            clean = [str(s) for s in symbols_raw if s]
+            if clean:
+                symbols_str = _json.dumps(clean)
 
         db_news = MarketNews(
             title=news.get("title"),
@@ -22,7 +31,9 @@ class NewsRepository:
             source=news.get("source"),
             url=news.get("url"),
             published=news.get("published"),
-            sentiment=news.get("sentiment")
+            sentiment=news.get("sentiment"),
+            symbols=symbols_str,
+            provider=news.get("provider"),
         )
 
         db.add(db_news)

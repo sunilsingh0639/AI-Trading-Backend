@@ -23,6 +23,11 @@ PREDICTION_HISTORY_COLUMNS = {
     "supporting_indicators": "TEXT",
 }
 
+MARKET_NEWS_COLUMNS = {
+    "symbols": "TEXT",
+    "provider": "VARCHAR(50)",
+}
+
 
 def _add_missing_columns(table_name: str, columns: dict[str, str]) -> list[str]:
     added: list[str] = []
@@ -49,4 +54,5 @@ def run_migrations() -> dict[str, list[str]]:
         "prediction_history": _add_missing_columns(
             "prediction_history", PREDICTION_HISTORY_COLUMNS
         ),
+        "market_news": _add_missing_columns("market_news", MARKET_NEWS_COLUMNS),
     }

@@ -23,6 +23,13 @@ class MarketNews(Base):
 
     ai_status = Column(Boolean, default=False)
 
+    # Provider-supplied stock symbols (JSON array string, e.g. '["RELIANCE","TCS"]')
+    # Populated by aggregator for Benzinga/MarketAux/Finnhub/Alpha Vantage articles.
+    symbols = Column(Text, nullable=True)
+
+    # Provider name (benzinga, marketaux, finnhub, alpha_vantage, newsapi, google_news)
+    provider = Column(String(50), nullable=True)
+
     created_on = Column(
         TIMESTAMP(timezone=True),
         server_default=func.now()

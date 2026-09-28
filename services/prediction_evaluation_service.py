@@ -81,18 +81,28 @@ def _market_status(dt_ist: datetime) -> str:
 def _evaluation_window_valid(start_ist: datetime, end_ist: datetime) -> bool:
     """
     Return True if any part of [start_ist, end_ist] overlaps a trading session.
-    We check both endpoints and the start-of-day open on each day in the range.
+    Iterates over each calendar day in the window and checks for a trading session.
     """
     # Check if start or end falls within market hours
     if _market_status(start_ist) == "OPEN":
         return True
     if _market_status(end_ist) == "OPEN":
         return True
-    # Check if a full trading session is contained within the window
-    # (e.g. prediction created before open, horizon ends after close)
-    check = start_ist.replace(hour=_NSE_OPEN_H, minute=_NSE_OPEN_M, second=0, microsecond=0)
-    if start_ist <= check <= end_ist and _is_trading_day(check.date()):
-        return True
+
+    # Walk each day in the window and check if the NSE open falls inside it
+    from datetime import date as _date
+    current = start_ist.date()
+    end_date = end_ist.date()
+    while current <= end_date:
+        if _is_trading_day(current):
+            open_t = _nse_open(current)
+            close_t = _nse_close(current)
+            # Any overlap between [start_ist, end_ist] and [open_t, close_t]
+            if start_ist <= close_t and end_ist >= open_t:
+                return True
+        from datetime import timedelta as _td
+        current += _td(days=1)
+
     return False
 
 
@@ -319,23 +329,121 @@ class PredictionEvaluationService:
 
     @staticmethod
     def performance_summary(db) -> dict:
+        from models.prediction_history import PredictionHistory
+        from sqlalchemy import func as sqlfunc
+
         evaluations = PredictionEvaluationRepository.get_all(db)
         total = len(evaluations)
-        correct = sum(1 for row in evaluations if row.is_correct)
-        false_positives = sum(
-            1 for row in evaluations if not row.is_correct and row.realised_return_pct <= 0
+        if total == 0:
+            return {
+                "totalEvaluated": 0,
+                "correct": 0,
+                "hitRatePercent": None,
+                "averageReturnPercent": 0.0,
+                "totalProfitLossPercent": 0.0,
+                "byDirection": {},
+                "byConfidenceBand": {},
+                "bySymbol": {},
+                "note": "No evaluated predictions yet.",
+            }
+
+        # Build a lookup: prediction_id → PredictionHistory row
+        pred_ids = [e.prediction_id for e in evaluations]
+        predictions = (
+            db.query(PredictionHistory)
+            .filter(PredictionHistory.id.in_(pred_ids))
+            .all()
         )
-        average_return = (
-            sum(row.realised_return_pct for row in evaluations) / total if total else 0.0
-        )
-        total_profit_pct = sum(row.realised_return_pct for row in evaluations)
+        pred_map: dict[int, PredictionHistory] = {p.id: p for p in predictions}
+
+        correct = sum(1 for e in evaluations if e.is_correct)
+        total_return = sum(e.realised_return_pct for e in evaluations)
+        avg_return = total_return / total
+
+        wins = [e.realised_return_pct for e in evaluations if e.is_correct]
+        losses = [e.realised_return_pct for e in evaluations if not e.is_correct]
+
+        # ── By direction (BUY / SELL) ────────────────────────────────────
+        by_direction: dict[str, dict] = {}
+        for ev in evaluations:
+            pred = pred_map.get(ev.prediction_id)
+            direction = (pred.recommendation if pred else "UNKNOWN") or "UNKNOWN"
+            bucket = by_direction.setdefault(direction, {"total": 0, "correct": 0, "returns": []})
+            bucket["total"] += 1
+            if ev.is_correct:
+                bucket["correct"] += 1
+            bucket["returns"].append(ev.realised_return_pct)
+        by_direction_summary = {
+            d: {
+                "total": v["total"],
+                "correct": v["correct"],
+                "hitRate": round(v["correct"] / v["total"] * 100, 1) if v["total"] else None,
+                "avgReturn": round(sum(v["returns"]) / len(v["returns"]), 4) if v["returns"] else 0.0,
+            }
+            for d, v in by_direction.items()
+        }
+
+        # ── By confidence band ───────────────────────────────────────────
+        def _conf_band(pred) -> str:
+            if pred is None or pred.confidence is None:
+                return "unknown"
+            c = float(pred.confidence)
+            if c >= 80:
+                return "80-100"
+            if c >= 70:
+                return "70-79"
+            if c >= 60:
+                return "60-69"
+            return "<60"
+
+        by_conf: dict[str, dict] = {}
+        for ev in evaluations:
+            band = _conf_band(pred_map.get(ev.prediction_id))
+            bucket = by_conf.setdefault(band, {"total": 0, "correct": 0, "returns": []})
+            bucket["total"] += 1
+            if ev.is_correct:
+                bucket["correct"] += 1
+            bucket["returns"].append(ev.realised_return_pct)
+        by_conf_summary = {
+            b: {
+                "total": v["total"],
+                "correct": v["correct"],
+                "hitRate": round(v["correct"] / v["total"] * 100, 1) if v["total"] else None,
+                "avgReturn": round(sum(v["returns"]) / len(v["returns"]), 4) if v["returns"] else 0.0,
+            }
+            for b, v in by_conf.items()
+        }
+
+        # ── By symbol (top 20) ───────────────────────────────────────────
+        by_sym: dict[str, dict] = {}
+        for ev in evaluations:
+            sym = ev.symbol or "UNKNOWN"
+            bucket = by_sym.setdefault(sym, {"total": 0, "correct": 0, "returns": []})
+            bucket["total"] += 1
+            if ev.is_correct:
+                bucket["correct"] += 1
+            bucket["returns"].append(ev.realised_return_pct)
+        by_sym_summary = {
+            s: {
+                "total": v["total"],
+                "correct": v["correct"],
+                "hitRate": round(v["correct"] / v["total"] * 100, 1) if v["total"] else None,
+                "avgReturn": round(sum(v["returns"]) / len(v["returns"]), 4) if v["returns"] else 0.0,
+            }
+            for s, v in sorted(by_sym.items(), key=lambda x: -x[1]["total"])[:20]
+        }
+
         return {
             "totalEvaluated": total,
             "correct": correct,
-            "hitRatePercent": round((correct / total) * 100, 2) if total else None,
-            "averageReturnPercent": round(average_return, 4),
-            "totalProfitLossPercent": round(total_profit_pct, 4),
-            "falsePositives": false_positives,
-            "falseNegatives": 0,
-            "note": "Measured realised outcomes, not a future-performance guarantee.",
+            "incorrect": total - correct,
+            "hitRatePercent": round(correct / total * 100, 2) if total else None,
+            "averageReturnPercent": round(avg_return, 4),
+            "averageWinPercent": round(sum(wins) / len(wins), 4) if wins else 0.0,
+            "averageLossPercent": round(sum(losses) / len(losses), 4) if losses else 0.0,
+            "totalProfitLossPercent": round(total_return, 4),
+            "byDirection": by_direction_summary,
+            "byConfidenceBand": by_conf_summary,
+            "bySymbol": by_sym_summary,
+            "note": "Measured realised outcomes only. Does not include PENDING or MARKET_CLOSED predictions.",
         }

@@ -214,7 +214,7 @@ class AnalysisService:
                 # Finnhub/Alpha Vantage articles).
                 provider_symbols: list[str] = []
                 provider_entities: list[str] = []
-                if hasattr(news, "symbols") and news.symbols:
+                if getattr(news, "symbols", None):
                     try:
                         import json as _json
                         raw = news.symbols
@@ -373,7 +373,25 @@ class AnalysisService:
 
                 if trade_plan:
                     result["trade_plan"] = trade_plan
-                    signal_status = "SIGNAL_CREATED"
+                    # Guard: a signal without an entry price cannot be evaluated
+                    if not trade_plan.get("entry_price"):
+                        rejected_signals += 1
+                        rejection_reason = "No entry price available (market data unavailable)"
+                        PipelineDebugService.log_signal_rejection(
+                            news.id,
+                            news.title,
+                            news_type,
+                            importance,
+                            company_name,
+                            result.get("recommendation", "HOLD"),
+                            int(result.get("confidence", 0)),
+                            [rejection_reason],
+                        )
+                        trade_plan = None
+                        result.pop("trade_plan", None)
+                        signal_status = "ANALYZED"
+                    else:
+                        signal_status = "SIGNAL_CREATED"
                 elif result.get("recommendation") == "HOLD":
                     hold_predictions += 1
                     rejection_reason = rejection_reasons[0] if rejection_reasons else "AI returned HOLD"
