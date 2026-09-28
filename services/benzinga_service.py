@@ -24,23 +24,34 @@ def fetch_benzinga_news() -> list[dict]:
     """Fetch latest financial news from Benzinga. Returns normalized article list."""
     api_key = _get_api_key()
 
-    params = {
-        "token": api_key,
-        "pageSize": 50,
-        "displayOutput": "full",
-        "sort": "created:desc",
-    }
+    # Build URL manually so the colon in "created:desc" is NOT percent-encoded.
+    # requests encodes ":" → "%3A" in params dicts, which Benzinga rejects.
+    # Postman sends: sort=created:desc  (raw colon — this is what works).
+    url = (
+        f"{_BASE_URL}"
+        f"?token={api_key}"
+        f"&pageSize=50"
+        f"&displayOutput=full"
+        f"&sort=created:desc"
+    )
 
-    response = requests.get(_BASE_URL, params=params, timeout=_TIMEOUT)
+    response = requests.get(url, timeout=_TIMEOUT)
 
     if response.status_code == 429:
         raise RuntimeError("HTTP 429 — Benzinga rate limit exceeded.")
-    if response.status_code == 401 or response.status_code == 403:
+    if response.status_code in (401, 403):
         raise RuntimeError(f"HTTP {response.status_code} — Benzinga authentication error.")
     response.raise_for_status()
 
-    if not response.content or not response.text.strip():
+    content_type = response.headers.get("Content-Type", "")
+    body = response.text.strip()
+
+    if not body:
         raise RuntimeError("Benzinga returned an empty response body.")
+
+    if "xml" in content_type.lower() or body.startswith("<"):
+        preview = body[:120].replace("\n", " ")
+        raise RuntimeError(f"Benzinga returned non-JSON content: {preview}")
 
     data = response.json()
 
